@@ -1,3 +1,5 @@
+'use strict';
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -17,26 +19,37 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
+      maxlength: [254, 'Email cannot exceed 254 characters'],
     },
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
-      select: false, // never returned by default
+      minlength: [8, 'Password must be at least 8 characters'],
+      maxlength: [128, 'Password cannot exceed 128 characters'],
+      select: false,
+    },
+    /**
+     * Bumped on logout or password change. Tokens contain this version.
+     * Older tokens are rejected, invalidating active sessions.
+     */
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   { timestamps: true }
 );
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    this.tokenVersion = (this.tokenVersion || 0) + 1;
+  }
   next();
 });
 
-// Compare plain password to hashed
 userSchema.methods.comparePassword = async function (plainPassword) {
   return bcrypt.compare(plainPassword, this.password);
 };

@@ -1,12 +1,20 @@
+'use strict';
+
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+/**
+ * JWT Authentication Middleware.
+ * F-30: The primary key indexed User lookup (User.findById) is intentionally
+ * retained on every protected request. This ensures immediate revocation when
+ * tokenVersion is incremented on logout/password change, and guarantees the user
+ * account still exists without unsafe in-memory caching.
+ */
 const protect = async (req, res, next) => {
   try {
-    // Expect: Authorization: Bearer <token>
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Not authorised — no token provided' });
+      return res.status(401).json({ message: 'Not authorised no token provided' });
     }
 
     const token = authHeader.split(' ')[1];
@@ -14,14 +22,23 @@ const protect = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      return res.status(401).json({ message: 'Not authorised — token invalid or expired' });
+    } catch {
+      return res.status(401).json({ message: 'Not authorised token invalid or expired' });
     }
 
-    // Attach user (without password) to request
-    const user = await User.findById(decoded.id).select('-password');
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ message: 'Not authorised token invalid' });
+    }
+
+    const user = await User.findById(decoded.id).select('name email tokenVersion createdAt');
     if (!user) {
-      return res.status(401).json({ message: 'Not authorised — user no longer exists' });
+      return res.status(401).json({ message: 'Not authorised user no longer exists' });
+    }
+
+    const tokenVersionInToken = Number(decoded.v) || 0;
+    const tokenVersionInUser = Number(user.tokenVersion) || 0;
+    if (tokenVersionInToken !== tokenVersionInUser) {
+      return res.status(401).json({ message: 'Not authorised token revoked' });
     }
 
     req.user = user;

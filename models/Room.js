@@ -22,8 +22,19 @@ const roomSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    /**
+     * Users who have successfully joined this room (at least once via socket join-room).
+     * Members + creator are the only users authorized to:
+     *  - read room details via REST
+     *  - control the timer (start/pause/resume/reset)
+     * A shareable room code lets any authenticated user *join* and become a member.
+     */
+    members: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }],
 
-    // ── Timer configuration ────────────────────────────────────────────────────
+    //  Timer configuration
     timerDuration: {
       type: Number,
       default: 25, // minutes
@@ -31,7 +42,7 @@ const roomSchema = new mongoose.Schema(
       max: [120, 'Timer duration cannot exceed 120 minutes'],
     },
 
-    // ── Server-authoritative timer state ──────────────────────────────────────
+    // Server-authoritative timer state
     timerStatus: {
       type: String,
       enum: ['idle', 'running', 'paused', 'completed'],
@@ -52,13 +63,54 @@ const roomSchema = new mongoose.Schema(
     },
     /**
      * Milliseconds remaining at the moment the timer was paused.
-     * When running:  actual remaining = timerRemainingMs − (Date.now() − timerStartedAt)
+     * When running:  actual remaining = timerRemainingMs  (Date.now() timerStartedAt)
      * When paused:   actual remaining = timerRemainingMs  (frozen)
      * When idle:     timerRemainingMs = timerDuration * 60 * 1000
      */
     timerRemainingMs: {
       type: Number,
       default: null, // null = use timerDuration * 60000
+    },
+    /**
+     * Epoch ms when the current running segment should reach zero.
+     * Authoritative for restart reconstruction. Null when not running.
+     */
+    timerEndsAt: {
+      type: Number,
+      default: null,
+    },
+    /**
+     * Focused milliseconds accumulated in the current cycle, excluding a live running segment.
+     * Running segment time is added on pause/complete.
+     */
+    timerAccumulatedMs: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    /**
+     * Monotonic cycle id incremented each time a new pomodoro starts from idle/completed.
+     * Used to uniquely identify FocusSession rows for this room cycle.
+     */
+    timerCycleId: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    /** Epoch ms of the first start in this cycle (pause/resume do not change it). */
+    timerCycleStartedAt: {
+      type: Number,
+      default: null,
+    },
+    /** Unique users who were present during this cycle (not socket ids). */
+    timerParticipantIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }],
+    /** True once FocusSession rows for this cycle have been written (or intentionally skipped). */
+    timerSessionsRecorded: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

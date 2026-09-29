@@ -20,8 +20,16 @@ const socketAuth = async (socket, next) => {
       return next(new Error('AUTH_INVALID'));
     }
 
+    if (!decoded || !decoded.id) return next(new Error('AUTH_INVALID'));
+
     const user = await User.findById(decoded.id).select('-password');
     if (!user) return next(new Error('AUTH_USER_GONE'));
+
+    const tokenVersionInToken = Number(decoded.v) || 0;
+    const tokenVersionInUser = Number(user.tokenVersion) || 0;
+    if (tokenVersionInToken !== tokenVersionInUser) {
+      return next(new Error('AUTH_REVOKED'));
+    }
 
     socket.user = user;
     next();

@@ -1,13 +1,21 @@
+'use strict';
+
 const express = require('express');
+const mongoose = require('mongoose');
+
 const router = express.Router();
 
-// GET /api/health
 router.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Focus Room API is running',
+  const isDbConnected = mongoose.connection.readyState === 1;
+  const status = isDbConnected ? 'ok' : 'degraded';
+  const httpStatus = isDbConnected ? 200 : 503;
+
+  res.status(httpStatus).json({
+    status,
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
+    services: {
+      database: isDbConnected ? 'connected' : 'disconnected',
+    },
   });
 });
 
