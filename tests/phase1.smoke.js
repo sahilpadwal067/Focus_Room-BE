@@ -60,7 +60,7 @@ test('placeholder: real 64-hex JWT secret NOT flagged', () => {
   assert.strictEqual(isPlaceholder(real), false);
 });
 test('placeholder: plausible Mongo Atlas URI NOT flagged', () => {
-  const plausible = 'mongodb+srv://user_real:AbCdEfGhIjKlMnOpQr@cluster0.mongodb.net/focus-room?retryWrites=true&w=majority';
+  const plausible = 'mongodb+srv://appuser:REDACTED_PASSWORD@cluster0.example.invalid/focus-room?retryWrites=true&w=majority';
   assert.strictEqual(isPlaceholder(plausible), false);
 });
 
